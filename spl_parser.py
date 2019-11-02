@@ -27,7 +27,10 @@ def parse_head(data):
             if printer_port.index(chr) == len(printer_port)-1:
                 break
         count += 1
-        chr = data[count]
+        try:
+            chr = data[count]
+        except:
+            return to_return
     count += 1
     chr = data[count]
     to_return['port'] = ''
@@ -69,10 +72,11 @@ def parse_body(data):
         if data[i] != '00':
             to_return['data'] += str(bytes.fromhex(data[i]))[2:3]
         end_offset = i
+    
     to_return['end'] = end_offset
-
+    if 'dd' in data[to_return['end']:]:
+        to_return['data'] += '\n'
     return to_return
-
 
 
 class Block:
@@ -125,9 +129,16 @@ class SPL:
             counter += 2
         self.blocks = main_parser(self.raw_data)
 
+    def restore_txt(self,output:str):
+        file = open(output,'w')
+        file.write(self.blocks[0].data['filename']+'\n')
+        for block in self.blocks[1:]:
+            if block.data['data'] != None:
+                file.write(block.data['data'])
+
 
 if __name__ == '__main__':       
-    spl = SPL('C:\\Windows\\System32\\spool\\PRINTERS\\FP00007.SPL')
+    spl = SPL('C:\\Windows\\System32\\spool\\PRINTERS\\FP00012.SPL')
     for block in spl.blocks[1:]:
         if block.data['data'] != None:
             print(block.data['data'])
