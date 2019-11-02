@@ -47,9 +47,13 @@ def parse_body(data):
                  'data':'',
                  'length':0}
 
-    if data[0] == '01':
+    if data[0] == '01' and data[92] != '60':
         to_return['type'] = 'spec'
         to_return['data'] = '\n'
+        return to_return
+    elif data[0] == '01' and data[92] == '60':
+        to_return['type'] = 'spec'
+        to_return['data'] = None
         return to_return
     else:
         to_return['type'] = 'text'
@@ -125,4 +129,5 @@ class SPL:
 if __name__ == '__main__':       
     spl = SPL('C:\\Windows\\System32\\spool\\PRINTERS\\FP00007.SPL')
     for block in spl.blocks[1:]:
-        print(block.data['data'])
+        if block.data['data'] != None:
+            print(block.data['data'])
