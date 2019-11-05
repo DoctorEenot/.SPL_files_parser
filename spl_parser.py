@@ -2,7 +2,7 @@ from binascii import hexlify
 
 
 def parse_head(data):
-    to_return = {'type':'head','filename':''}
+    to_return = {'type':'head','filename':'','data':''}
     
     #Parsing filename
     start_offset = 16 #For FileName    
@@ -20,62 +20,77 @@ def parse_head(data):
     count = end_offset
     chr = data[start_offset]    
     cnt = 0
+    found = False
     while True:
-        if chr == printer_port[cnt]:            
-            
+        if chr == printer_port[cnt]:                       
             cnt += 1
             if printer_port.index(chr) == len(printer_port)-1:
+                found = True
                 break
         count += 1
         try:
             chr = data[count]
         except:
-            return to_return
-    count += 1
-    chr = data[count]
-    to_return['port'] = ''
-    while chr != '3a':
-        if chr != '00':
-            to_return['port'] += str(bytes.fromhex(chr))[2:3]
+            found = False
+            break
+    if found:
         count += 1
         chr = data[count]
-    end_offset = count
+        to_return['port'] = ''
+        while chr != '3a':
+            if chr != '00':
+                to_return['port'] += str(bytes.fromhex(chr))[2:3]
+            count += 1
+            chr = data[count]
+        end_offset = count
+
+    #parse SpecSymbol
+    sumb = data[len(data)-32]
+    if sumb == 'df':
+        to_return['data'] = 'NEW PAGE'
+    elif sumb == '18':
+        to_return['data'] += '\n'
 
     return to_return
-    
+   
 def parse_body(data):
     to_return = {'type':'',
                  'start':0,
                  'end':0,
                  'data':'',
                  'length':0}
-
-    if data[0] == '01' and data[92] != '60':
-        to_return['type'] = 'spec'
-        to_return['data'] = '\n'
-        return to_return
-    elif data[0] == '01' and data[92] == '60':
-        to_return['type'] = 'spec'
-        to_return['data'] = None
-        return to_return
-    else:
-        to_return['type'] = 'text'
-    length = int(data[0],16)
-    to_return['start'] = 4
-
-    to_return['length'] = length
-    end_offset = 0
-    for i in range(4,length):
-        if data[i] == '19':
-
-            break
-        if data[i] != '00':
-            to_return['data'] += str(bytes.fromhex(data[i]))[2:3]
-        end_offset = i
     
-    to_return['end'] = end_offset
-    if 'dd' in data[to_return['end']:]:
+    if data[0] == '01' :
+        to_return['type'] = 'spec'
+         
+    else:
+        to_return['type'] = 'text'    
+        #Parse text
+        length = int(data[0],16)
+        to_return['start'] = 4
+        #to_return['length'] = length
+        end_offset = 0
+        for i in range(4,length):
+            if data[i] == '00':
+                continue
+            if data[i][0] == '1' or data[i][0] == '0':
+                break
+            
+            to_return['data'] += str(bytes.fromhex(data[i]))[2:3]
+            end_offset = i
+        
+        to_return['end'] = end_offset
+    
+    #parse SpecSumbol
+    sumb = data[len(data)-32]#32 - offset of SpecSumbol from the end of block
+    if sumb == 'df':
+        if to_return['type'] == 'text':
+            to_return['data'] += '\n'
+        else:
+            to_return['data'] = 'NEW PAGE'
+    if sumb == '18':
         to_return['data'] += '\n'
+
     return to_return
 
 
@@ -87,6 +102,10 @@ class Block:
         else:
             self.data = parse_body(block)
     
+    def change(self,new_string:str) -> bool:
+        if self.data['type'] == 'spec':
+            return False
+
     
 def main_parser(data):
     to_return = []
@@ -131,14 +150,17 @@ class SPL:
 
     def restore_txt(self,output:str):
         file = open(output,'w')
-        file.write(self.blocks[0].data['filename']+'\n')
+        file.write('Origin FileName(probably):'+self.blocks[0].data['filename']+'\n\n')
         for block in self.blocks[1:]:
             if block.data['data'] != None:
                 file.write(block.data['data'])
 
 
 if __name__ == '__main__':       
-    spl = SPL('C:\\Windows\\System32\\spool\\PRINTERS\\FP00012.SPL')
+    spl = SPL('C:\\Windows\\System32\\spool\\PRINTERS\\FP00009.SPL')
+    print(spl.blocks[0].data)
+    #file = open('out.txt','wb')
     for block in spl.blocks[1:]:
         if block.data['data'] != None:
+
             print(block.data['data'])
